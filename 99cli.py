@@ -1,5 +1,6 @@
 import time
 from difflib import SequenceMatcher
+import random
 
 # Dictionary of Allah's names and their definitions
 allah_names_and_definitions = {
@@ -105,13 +106,23 @@ allah_names_and_definitions = {
 }
 
 def is_partial_match(user_input, correct_name):
-    # Check if the user input is a partial match (up to 65% similarity) to the correct name
     similarity_ratio = SequenceMatcher(None, user_input.lower(), correct_name.lower()).ratio()
     return similarity_ratio >= 0.65
+
+def reveal_letters(name, revealed_letters):
+    revealed = ''
+    for letter in name:
+        if letter in revealed_letters:
+            revealed += letter + ' '
+        else:
+            revealed += '_ '
+    return revealed
 
 def allah_game():
     correct_answers = []
     incorrect_answers = []
+    correct_definitions = []
+    incorrect_definitions = []
     score = 0
     start_time = time.time()
     last_correct_time = start_time
@@ -120,23 +131,82 @@ def allah_game():
     print("Type as many names of Allah as you can.")
     print("You get 10 points for typing two names consecutively within 8 seconds.")
     print("You get 11 points if they are 4 seconds apart.")
-    print("Type 'quit' to end the game.\n")
+    print("Type 'quit' to quiz definitions, 'quitquit' to end the game.\n")
+
+    entered_names = []
+    entered_definitions = []
+    game_log = []
+    hints_given = 0
+    revealed_letters = set()
+    names_entered = set()
 
     while True:
         current_time = time.time()
 
-        # Choose a random Allah name from the dictionary
-        correct_name = list(allah_names_and_definitions.keys())[score % len(allah_names_and_definitions)]
-
-        user_input = input(f"Type the name of Allah: \n")
-
-        if user_input.lower() == 'quit':
+        print(f"Current Points: {score} | Elapsed Time: {current_time - start_time:.2f} seconds | Invested Time: {(current_time - start_time) * 10:.2f} seconds")
+        
+        if len(allah_names_and_definitions) == 0:
+            print("\nNow, let's quiz for definitions!")
             break
 
-        # Check if the user input is correct or partially correct
-        if any(is_partial_match(user_input, name) for name in allah_names_and_definitions):
-            correct_answers.append((correct_name, current_time - start_time))
-            score += 1
+        correct_name = random.choice(list(allah_names_and_definitions.keys()))
+        
+        while correct_name in names_entered:
+            correct_name = random.choice(list(allah_names_and_definitions.keys()))
+
+        print("Current Allah Name:")
+        partial_name = reveal_letters(correct_name, revealed_letters)
+        print(partial_name)
+
+        user_input = input("Type the name of Allah (or 'hint' for a hint): \n")
+
+        if user_input.lower() == 'quit':
+            if input("Type 'quitquit' to end the game: \n").lower() == 'quitquit':
+                break
+            else:
+                continue
+        elif user_input.lower() == 'hint':
+            if hints_given < 3:
+                hints_given += 1
+                random_letter = random.choice(correct_name)
+                revealed_letters.add(random_letter)
+                print(f"Hint {hints_given}: '{random_letter}' has been revealed in the name.")
+            else:
+                print("You've used all available hints.")
+        else:
+            if any(is_partial_match(user_input, name) for name in allah_names_and_definitions):
+                correct_answers.append((correct_name, current_time - start_time))
+                score += 1
+
+                if score >= 2:
+                    time_difference = current_time - last_correct_time
+                    if time_difference <= 4:
+                        score += 11
+                    elif time_difference <= 8:
+                        score += 10
+                    last_correct_time = current_time
+
+                names_entered.add(correct_name)
+
+                game_log.append((time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(current_time)), f"Entered: {user_input} | Allah Name: {correct_name}"))
+
+                entered_names.append(user_input)
+            else:
+                incorrect_answers.append(correct_name)
+
+    total_time_names = time.time() - start_time
+    final_score_names = score * int(total_time_names) * 10
+
+    print("\nNow, let's quiz for definitions!")
+
+    while allah_names_and_definitions:
+        name, definition = allah_names_and_definitions.popitem()
+        user_input = input(f"What is the definition of '{name}'? \n")
+
+        if user_input.lower() == definition.lower():
+            correct_definitions.append(name)
+            correct_answers.append((name, current_time - start_time))
+            score += 10
 
             if score >= 2:
                 time_difference = current_time - last_correct_time
@@ -146,15 +216,21 @@ def allah_game():
                     score += 10
                 last_correct_time = current_time
 
-        else:
-            incorrect_answers.append(correct_name)
+            game_log.append((time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(current_time)), f"Entered Definition for: {name}"))
 
-    total_time = time.time() - start_time
-    final_score = score * int(total_time)
-    print("\nGame Over! Your total score is:", final_score, "points.")
-    print(f"Total Time Elapsed: {total_time:.2f} seconds")
-    print(f"\nNumber of Correct Answers: {len(correct_answers)}")
-    print("\nCorrect Answers:")
+        else:
+            incorrect_definitions.append(name)
+
+    total_time_definitions = time.time() - start_time - total_time_names
+    final_score_definitions = score * int(total_time_definitions) * 10
+
+    print("\nGame Over! Your total score is:", final_score_names + final_score_definitions, "points.")
+    print(f"Total Time Elapsed for Names: {total_time_names:.2f} seconds")
+    print(f"Total Time Elapsed for Definitions: {total_time_definitions:.2f} seconds")
+    print(f"\nNumber of Correct Names Entered: {len(correct_answers)}")
+    print(f"Number of Correct Definitions Guessed: {len(correct_definitions)}")
+
+    print("\nCorrect Names Entered:")
     for name, time_taken in correct_answers:
         if time_taken <= 4:
             print(f"{name} - Achieved in 4 seconds")
@@ -162,10 +238,26 @@ def allah_game():
             print(f"{name} - Achieved in 8 seconds")
         else:
             print(f"{name} - Not within time bonus")
-    
-    print("\nIncorrect Answers:")
+
+    print("\nIncorrect Names Entered:")
     for name in incorrect_answers:
         print(name)
+
+    print("\nCorrect Definitions Guessed:")
+    for name in correct_definitions:
+        print(name)
+
+    print("\nIncorrect Definitions Guessed:")
+    for name in incorrect_definitions:
+        print(name)
+
+    export_choice = input("Would you like to export the game log? (yes/no): ").lower()
+    if export_choice == 'yes':
+        export_filename = input("Enter the filename to export (e.g., log.txt): ")
+        with open(export_filename, 'w') as file:
+            file.write("Game Log:\n")
+            for entry in game_log:
+                file.write(f"{entry[0]} - {entry[1]}\n")
 
 if __name__ == "__main__":
     allah_game()
